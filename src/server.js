@@ -57,7 +57,8 @@ export function createAppServer({ store = createStore() } = {}) {
       console.error(error);
       message = 'Something went wrong.';
     }
-    response.status(status).json({ error: message });
+    const body = typeof error.toClientJSON === 'function' ? error.toClientJSON() : { error: message };
+    response.status(status).json(body);
   });
   return createServer(app);
 }

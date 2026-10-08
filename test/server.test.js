@@ -36,6 +36,36 @@ test('API lists rooms, creates a booking, and retrieves it', async (t) => {
   assert.deepEqual(await listed.json(), [result]);
 });
 
+test('a conflicting direct POST /api/bookings returns 409 with full conflict detail', async (t) => {
+  const request = await setup(t);
+  const first = await request('/api/bookings', post(booking));
+  const existing = await first.json();
+  const response = await request('/api/bookings', post({
+    ...booking, startTime: '2030-06-12T09:30:00Z', endTime: '2030-06-12T10:30:00Z',
+  }));
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), {
+    error: 'This room is already booked for the requested time.',
+    conflicts: [{
+      startTime: existing.startTime, endTime: existing.endTime,
+      title: existing.title, organizer: existing.organizer,
+    }],
+  });
+  const listed = await request('/api/bookings?roomId=cedar&date=2030-06-12');
+  assert.deepEqual(await listed.json(), [existing]);
+});
+
+test('a non-conflicting direct POST /api/bookings still returns 201 with the created booking', async (t) => {
+  const request = await setup(t);
+  await request('/api/bookings', post(booking));
+  const response = await request('/api/bookings', post({
+    ...booking, startTime: '2030-06-12T10:00:00Z', endTime: '2030-06-12T11:00:00Z',
+  }));
+  assert.equal(response.status, 201);
+  const result = await response.json();
+  assert.equal(result.startTime, '2030-06-12T10:00:00.000Z');
+});
+
 test('API returns useful validation errors and does not create invalid bookings', async (t) => {
   const request = await setup(t);
   const response = await request('/api/bookings', post({ ...booking, endTime: booking.startTime }));
